@@ -23,6 +23,7 @@ Stretch only if all core exit criteria are met early: List-Fugue perf comparison
 ## 3. Authority and stop rules
 
 Read before acting:
+
 1. `PRD.md`
 2. `AGENTS.md`
 3. `STACK.md`
@@ -32,6 +33,7 @@ Read before acting:
 7. the current ticket/spec
 
 Stop and ask Fady if:
+
 - a task conflicts with PRD, this file, STACK, or an ADR;
 - a skill recommends a forbidden package, pattern, or scope;
 - a gate would need to be bypassed;
@@ -57,6 +59,7 @@ Infra/secrets:
 `/wizard` may generate human-only steps. Fady executes secret provisioning.
 
 Forbidden process tools in this repo:
+
 - spec-kit / `specify`
 - Artemis
 - Elephant-Goldfish Model / EGM
@@ -81,14 +84,18 @@ When vendoring user-invoked skills, ensure OpenCode frontmatter includes:
 
 If a skill conflicts with this contract, the contract wins. Stop and report the conflict.
 
+After any major OpenCode version update (v2.x → v3.x), run `opencode --help` to verify the permission schema is unchanged, and manually test one hook-guarded commit to confirm the gates still fire.
+
 ## 6. Git autonomy
 
 Agent may:
+
 - `git status`, `diff`, `log`, `show`, `branch`, `switch`, `add`, `commit`, `fetch`, `pull --ff-only`
 - push feature branches only: `feat-*`, `fix-*`, `chore-*`, `docs-*`, `spike-*`
 - `gh issue`, `gh pr create/view/comment/checks/diff`, `gh run view/list`, `gh repo view`, `gh label`
 
 Agent may never:
+
 - push to `main` or `master`
 - force-push
 - merge PRs
@@ -121,6 +128,7 @@ Never read, write, print, or commit:
 Only `.env.example` may exist in repo.
 
 Sentry DSN:
+
 - local: `--dart-define=SENTRY_DSN=...` from Fady’s shell
 - CI: GitHub secret
 - never committed
@@ -132,6 +140,7 @@ Backup/restore commands involving `age`, `rclone`, `pg_dump`, `pg_restore`, prod
 No model ID is pinned in repo config. Fady selects the session model.
 
 Capability floor:
+
 - core merge, tie-breaking, invariants, convergence diagnosis: frontier-class reasoning model only;
 - small/flash models: scaffolding, docs, formatting, test-file structure only.
 
@@ -145,6 +154,7 @@ Every core PR records the model used, as provenance.
 `STACK.md` is the dependency contract.
 
 `weft_core`:
+
 - runtime: `meta` only
 - dev: `test`, `checks`, `glados`, `coverage`, `benchmark_harness`, `fake_async`, `very_good_analysis`
 - no freezed, no codegen, no Flutter imports, no network, no UI
@@ -162,6 +172,7 @@ Stdlib: `log/slog`, `crypto/sha256`.
 Optional pre-approved tiers are listed in STACK.md. Installing a listed optional package requires STACK.md update + PR. Anything unlisted requires a new ADR.
 
 Forbidden swaps:
+
 - mockito instead of mocktail
 - go_router instead of auto_route
 - http instead of dio
@@ -182,6 +193,7 @@ rendering, intent capture, persistence wiring, sync status, pairing UX.
 WebSocket lifecycle, dedup, seq assignment, durable buffering, cursor resume, metrics.
 
 Forbidden:
+
 - merge logic in Flutter
 - CRDT semantics in relay
 - Flutter/network/UI imports in `weft_core`
@@ -203,6 +215,7 @@ ADR-0012 records this.
 ## 12. Testing contract
 
 Core:
+
 - test through public API only: `FugueDoc`, `OpStore`
 - no private-function tests
 - properties assert CR-01…CR-06
@@ -210,17 +223,20 @@ Core:
 - test-first for new behavior
 
 Relay:
+
 - black-box WebSocket/HTTP tests
 - assert database rows
 - test-first for protocol/DB logic
 
 App:
+
 - bloc tests with `bloc_test`
 - domain/data unit tests
 - no widget tests
 - `integration_test` for single-device flows
 
 Manual:
+
 - two physical Android phones
 - airplane-mode partition
 - arbitrary reconnect order
@@ -247,6 +263,7 @@ Before PR:
 run `just ci`.
 
 Hooks:
+
 - pre-commit: format, analyze staged files, secret scan
 - commit-msg: Conventional Commits
 - pre-push: core tests, properties, simulator smoke, Go race tests, Flutter analyze/test
@@ -255,6 +272,7 @@ CI:
 mirrors pre-push plus integration, architecture test, build_verify, drift.
 
 Drift gate (`just drift`):
+
 - STACK packages match pubspec/go.mod
 - just recipes referenced in docs exist
 - allowlisted skills exist on disk
@@ -266,6 +284,7 @@ Never bypass gates.
 ## 14. Defendability gate
 
 Every PR touching `packages/weft_core` requires five lines written by Fady, in his own words, no file open:
+
 1. what behavior changed;
 2. why it is correct;
 3. which invariant it protects;
@@ -295,11 +314,13 @@ weekly, `docs/devlog/NN.md` + LinkedIn post.
 ## 16. Release proposal protocol
 
 Agent may propose a release only when all are true:
+
 1. every exit criterion for the current milestone is met with linked evidence;
 2. CI is green on `main`;
 3. `just changelog` produces a non-empty diff.
 
 Proposal includes:
+
 - suggested version;
 - exit-criteria checklist with proof links;
 - changelog diff;
@@ -308,6 +329,7 @@ Proposal includes:
 Fady executes tag and release.
 
 Version map:
+
 - M0 → `v0.1.0`
 - M1 → `v0.2.0`
 - M2 → `v0.3.0`
@@ -320,6 +342,7 @@ APK attached from M2 onward.
 ## 17. Current phase: M0 walking skeleton
 
 M0 exit criteria:
+
 - public repo, CI green on main;
 - relay live on Render + Neon, public URL, `/health` returns version;
 - UptimeRobot pinging every 5 min;
@@ -338,6 +361,7 @@ AGP ≥8.12.1, Gradle ≥8.13, Java 17.
 ## 18. Forbidden summary
 
 No:
+
 - CRDT libraries
 - Rust/FFI
 - widget tests
@@ -355,3 +379,17 @@ No:
 - agent-written defendability text
 - merging with red CI
 - cutting properties, simulator, README design decisions, or two-phone demo
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs live as GitHub issues in `fadyphil/weft`, driven by the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Five canonical roles, each label string equal to its name: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
