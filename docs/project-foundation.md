@@ -1,5 +1,12 @@
 # Project Foundation Document
 
+> **SUPERSEDED** by [PRD.md](../PRD.md) v1.1 (2026-11-13). Do not build from this file.
+>
+> Kept for its §4 theory, §5 Fugue, §8 ownership, §10 testing, and §14 narrative. Every
+> decision that changed — Rust core → pure Dart, 6 months → 8 weeks, GC cut, Rust
+> proficiency claim withdrawn, walking-skeleton-first phase order — is listed in
+> [PRD §19](../PRD.md#19--agent-operating-contract).
+
 ## Working title: "Loom" — A Hand-Built CRDT Sync Engine (Rust core · Flutter client · Go relay)
 
 | | |
