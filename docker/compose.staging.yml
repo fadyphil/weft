@@ -1,0 +1,35 @@
+name: weft-staging
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: weft_staging
+    ports:
+      - '5433:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  relay:
+    build:
+      context: ../relay
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/weft_staging?sslmode=disable
+      PORT: '8080'
+      LOG_LEVEL: debug
+      MAX_BATCH_OPS: '256'
+      MAX_FRAME_BYTES: '1048576'
+    ports:
+      - '8080:8080'
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:

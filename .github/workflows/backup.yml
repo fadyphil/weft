@@ -1,0 +1,30 @@
+name: backup
+on:
+  schedule:
+    - cron: '30 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install postgres client, age, rclone
+        run: |
+          sudo apt-get update && sudo apt-get install -y postgresql-client age rclone
+      - name: Dump, encrypt, upload
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          AGE_RECIPIENT: ${{ secrets.AGE_RECIPIENT }}
+          RCLONE_CONFIG_GDRIVE_TYPE: drive
+          RCLONE_CONFIG_GDRIVE_SCOPE: drive.file
+          RCLONE_CONFIG_GDRIVE_TOKEN: ${{ secrets.RCLONE_GDRIVE_TOKEN }}
+        run: |
+          pg_dump "$DATABASE_URL" -Fc -f backup.dump
+          age -r "$AGE_RECIPIENT" -o "weft-$(date -u +%F).dump.age" backup.dump
+          rclone copy "weft-$(date -u +%F).dump.age" gdrive:weft-backups/
+      - name: Reminder
+        run: echo "Restore drill is a human step (M4). Record the result in an ADR."

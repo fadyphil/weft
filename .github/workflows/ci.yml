@@ -1,0 +1,89 @@
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+      - run: dart pub get
+        working-directory: packages/weft_core
+      - run: dart format --output=none --set-exit-if-changed .
+        working-directory: packages/weft_core
+      - run: dart analyze --fatal-infos
+        working-directory: packages/weft_core
+      - run: dart test --exclude-tags=simulator,sabotage,benchmark
+        working-directory: packages/weft_core
+      - name: Properties (100 cases) + simulator (100 seeds)
+        run: WEFT_PROPERTY_CASES=100 WEFT_SIM_SEEDS=100 dart test --tags=simulator
+        working-directory: packages/weft_core
+
+  relay:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: weft_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 10s
+          --health-timeout 5s --health-retries 5
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/weft_test?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: relay/go.mod
+      - run: go vet ./...
+        working-directory: relay
+      - run: go test -race ./...
+        working-directory: relay
+
+  app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter pub get
+        working-directory: apps/weft_app
+      - run: dart run build_runner build --delete-conflicting-outputs
+        working-directory: apps/weft_app
+      - run: flutter analyze
+        working-directory: apps/weft_app
+      - run: flutter test
+        working-directory: apps/weft_app
+
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - run: GOBIN=$HOME/.local/bin go install github.com/mikefarah/yq/v4@latest
+      - run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - uses: extractions/setup-just@v2
+      - run: just architecture
+      - run: just drift
+      - uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: relay/Dockerfile
+          failure-threshold: error
+      - uses: rhysd/actionlint@v1

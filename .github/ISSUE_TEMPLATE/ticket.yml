@@ -1,0 +1,51 @@
+name: Ticket
+description: A tracer-bullet unit of work with acceptance criteria and gates.
+labels: [needs-triage]
+body:
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Outcome
+      description: One sentence. What is true when this is done?
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Testable statements. Reference PRD requirement IDs where relevant.
+      placeholder: |
+        - [ ] CR-01 holds for ...
+        - [ ] `just test-core` green
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: [core, relay, app, ops, docs]
+    validations:
+      required: true
+  - type: dropdown
+    id: milestone
+    attributes:
+      label: Milestone
+      options: [M0, M1, M2, M3, M4, M5, polish, stretch]
+    validations:
+      required: true
+  - type: textarea
+    id: blocking
+    attributes:
+      label: Blocked by
+      description: Issue numbers that must land first. Write "none" if independent.
+    validations:
+      required: true
+  - type: checkboxes
+    id: gates
+    attributes:
+      label: Gates that apply
+      options:
+        - label: Touches weft_core — five-line defendability gate required (Fady writes it)
+        - label: Touches CI or permissions — human review required
+        - label: Adds a dependency — STACK.md update or ADR required
+        - label: Touches a non-goal — STOP, needs ADR + approval

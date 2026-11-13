@@ -1,0 +1,36 @@
+name: release
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - run: go install github.com/orhun/git-cliff@latest
+      - run: git-cliff --latest -o RELEASE_NOTES.md
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter pub get
+        working-directory: apps/weft_app
+      - run: dart run build_runner build --delete-conflicting-outputs
+        working-directory: apps/weft_app
+      - run: >
+          flutter build apk --release
+          --dart-define=SENTRY_DSN=${{ secrets.SENTRY_DSN }}
+          --dart-define=RELAY_URL=${{ vars.RELAY_URL }}
+        working-directory: apps/weft_app
+      - uses: softprops/action-gh-release@v2
+        with:
+          body_path: RELEASE_NOTES.md
+          files: apps/weft_app/build/app/outputs/flutter-apk/app-release.apk

@@ -1,0 +1,7 @@
+# Frozen for the 8-week build window after Q60 upgrade.
+# Dart is bundled by Flutter; do not install a separate Dart SDK.
+flutter 3.50.0
+dart 3.14.0
+golang 1.27.4
+nodejs 26.13.1
+python 3.14.4

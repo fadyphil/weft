@@ -1,0 +1,19 @@
+# Sabotage manifest — Q59 / ADR-0015
+# Format: id|status|file|sed|invariant|note
+#   status: armed | pending
+#   file:   path relative to packages/weft_core
+#   sed:    a single sed expression; MUST NOT contain the '|' character
+#
+# Arm each entry during M1 once the real merge code exists. Replace `TBD`
+# with the actual file and a sed expression that introduces exactly the
+# described defect. `just sabotage --strict` is enabled at M1 exit and
+# fails while any entry is still pending.
+
+reverse-tiebreak|pending|TBD|TBD|CR-05|Compare NodeIDs in reverse order so concurrent runs interleave.
+no-causal-buffer|pending|TBD|TBD|CR-04|Apply ops with unknown dependencies immediately instead of buffering.
+non-idempotent-apply|pending|TBD|TBD|CR-03|Skip the opId seen-check so duplicate delivery double-applies.
+physical-tombstone-delete|pending|TBD|TBD|CR-06|Remove deleted nodes from the tree instead of marking them.
+index-instead-of-nodeid|pending|TBD|TBD|CR-01|Key nodes by array index rather than NodeID.
+ignore-left-origin|pending|TBD|TBD|CR-05|Drop leftOrigin and append concurrent inserts at the tail.
+drop-opid-dedup|pending|TBD|TBD|CR-03|Remove the duplicate-op guard on the merge path.
+swap-traversal-order|pending|TBD|TBD|CR-01|Reverse sibling traversal order during render.
