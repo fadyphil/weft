@@ -29,7 +29,7 @@ The cursor advances only after persistence. A crash between merge and persist co
 ## Consequences
 
 - Delivery order is transport order, not causal order. That is deliberate: the relay does not know dependencies, so the core buffers operations whose origin or delete target has not arrived (CR-04) instead of the relay trying to order them.
-- The cursor is per (document, device), so a reinstalled app restarts from zero and re-merges. Correct, just wasteful — acceptable at v1.
+- The cursor is per (document, device), so a reinstalled app restarts from zero and re-merges. Correct, merely wasteful — acceptable at v1.
 - Backlog size is bounded by batch limits, so a 10,000-operation gap arrives in many batches rather than one oversized frame.
 
 ## Evidence
