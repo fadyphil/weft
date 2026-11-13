@@ -23,9 +23,7 @@ pre-commit:
       glob: "*.sh"
       run: shellcheck {staged_files}
     secrets:
-      # gitleaks v8: `protect --staged`. If your version renamed it,
-      # use `gitleaks git --staged` and record the change in an ADR.
-      run: gitleaks protect --staged --redact --no-banner
+      run: gitleaks git --staged
 
 commit-msg:
   commands:
