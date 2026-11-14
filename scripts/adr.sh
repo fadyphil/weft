@@ -1,9 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 title="${1:?usage: just adr \"title\"}"
-dir=docs/adr; mkdir -p "$dir"
-last="$(ls "$dir" 2>/dev/null | grep -oE '^[0-9]{4}' | sort -n | tail -1 || true)"
-n="$(printf '%04d' "$(( ${last:-0} + 1 ))")"
+dir=docs/adr
+mkdir -p "$dir"
+last=0
+for f in "$dir"/[0-9][0-9][0-9][0-9]-*.md; do
+  [[ -e "$f" ]] || continue
+  n="${f##*/}"
+  n="${n:0:4}"
+  ((10#$n > last)) && last=$((10#$n))
+done
+n="$(printf '%04d' "$((${last:-0} + 1))")"
 slug="$(echo "$title" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/^-//;s/-$//')"
 file="$dir/$n-$slug.md"
 cat >"$file" <<EOF
@@ -28,6 +35,9 @@ What becomes easier, what becomes harder, what we now owe.
 ## Evidence
 Tests, benchmarks, or links that justify this.
 EOF
-{ echo "# Architecture Decision Records"; echo; \
-  for f in "$dir"/[0-9]*.md; do echo "- [$(basename "$f" .md)]($f)"; done; } >"$dir/README.md"
+{
+  echo "# Architecture Decision Records"
+  echo
+  for f in "$dir"/[0-9]*.md; do echo "- [$(basename "$f" .md)]($f)"; done
+} >"$dir/README.md"
 echo "created $file"

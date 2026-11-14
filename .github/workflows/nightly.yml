@@ -8,7 +8,26 @@ permissions:
   contents: read
 
 jobs:
+  # Same policy as ci.yml: a job pointed at a subtree that does not exist yet is
+  # skipped and named, never red for a reason no change could fix. Issue #9 deletes
+  # this job once the walking skeleton is complete.
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      core: ${{ steps.tree.outputs.core }}
+      relay: ${{ steps.tree.outputs.relay }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: tree
+        run: |
+          {
+            echo "core=$([ -f packages/weft_core/pubspec.yaml ] && echo true || echo false)"
+            echo "relay=$([ -f relay/go.mod ] && echo true || echo false)"
+          } | tee -a "$GITHUB_OUTPUT" "$GITHUB_STEP_SUMMARY"
+
   deep-verify:
+    needs: detect
+    if: needs.detect.outputs.core == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,19 +41,23 @@ jobs:
         run: WEFT_SIM_SEEDS=1000 dart test --tags=simulator
         working-directory: packages/weft_core
       - name: Sabotage suite — every mutant must be killed
-        run: ./scripts/sabotage.sh
+        run: ./scripts/in-subtree.sh --root packages/weft_core ./scripts/sabotage.sh
 
   security:
+    needs: detect
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version: stable
-      - run: go install golang.org/x/vuln/cmd/govulncheck@latest
-      - run: govulncheck ./...
+      - if: needs.detect.outputs.relay == 'true'
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+      - if: needs.detect.outputs.relay == 'true'
+        run: govulncheck ./...
         working-directory: relay
       - name: Go fuzz (relay op intake)
+        if: needs.detect.outputs.relay == 'true'
         run: go test -fuzz=FuzzOpIntake -fuzztime=120s ./...
         working-directory: relay
       - uses: gitleaks/gitleaks-action@v2

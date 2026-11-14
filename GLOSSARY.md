@@ -48,6 +48,8 @@ If a term is missing, add it before using it in code.
 | **armed / pending** | Manifest state: wired to real code, or still awaiting M1 implementation. |
 | **ratchet** | Coverage may never fall below the recorded baseline. Not a percentage target. |
 | **gate** | An automated check that must pass before code moves forward. Local (hooks) or remote (CI). |
+| **subtree** | One of the three code roots a gate points at: `packages/weft_core`, `apps/weft_app`, `relay`. Assembled in build order by #2, #5 and #3. |
+| **gate skip** | A gate reporting by name that it ran nothing because its subtree is absent. Never silent, and never the same as a pass. `WEFT_STRICT_TREE=1` / `WEFT_STRICT_MANIFESTS=1` forbid it. Distinct from **armed / pending**, which is mutant state. |
 | **drift** | Docs and code disagreeing. `just drift` catches the mechanical cases. |
 | **defendability gate** | Fady's five own-words lines on every core PR. Agents never write it. |
 
