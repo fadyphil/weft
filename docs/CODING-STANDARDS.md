@@ -6,7 +6,7 @@ the reviewer must not invent it — it should raise a ticket to add one.
 ## 1. Layer boundaries (enforced by `just architecture`)
 
 | Layer | Owns | Must never |
-|---|---|---|
+| --- | --- | --- |
 | `packages/weft_core` | merge order, tie-breaking, causal buffering, convergence, serialization, `OpStore` | import Flutter, `dart:ui`, networking, or app packages; use codegen |
 | `apps/weft_app` | rendering, intent capture, persistence wiring, sync status, pairing | contain merge/ordering/conflict logic; import `package:weft_core/src/` |
 | `relay` | WS lifecycle, dedup, seq assignment, buffering, cursors, metrics | interpret CRDT semantics or log payloads |
