@@ -4,21 +4,41 @@
 # doc scope excludes vendored skills, planned ADRs accepted.
 set -euo pipefail
 fail=0
-err() { echo "DRIFT: $*"; fail=1; }
+pending=0
+err() {
+  echo "DRIFT: $*"
+  fail=1
+}
 
-[[ -f STACK.md ]] || { echo "DRIFT: STACK.md missing"; exit 1; }
+# A manifest that does not exist yet cannot be compared. That is a tracked state —
+# packages/weft_core (#2), apps/weft_app (#5), relay (#3) — not a drift failure.
+# It is reported, never hidden. WEFT_STRICT_MANIFESTS=1 turns every pending tier
+# into a failure; issue #9 flips that on once the walking skeleton is complete.
+absent() {
+  if [[ "${WEFT_STRICT_MANIFESTS:-0}" == "1" ]]; then
+    err "$1 missing"
+  else
+    echo "DRIFT-PENDING: $1 missing — $2 unchecked"
+    pending=$((pending + 1))
+  fi
+}
+
+[[ -f STACK.md ]] || {
+  echo "DRIFT: STACK.md missing"
+  exit 1
+}
 
 DOC_PATHS=(README.md PRD.md AGENTS.md STACK.md GLOSSARY.md docs)
 existing=()
 for p in "${DOC_PATHS[@]}"; do [[ -e "$p" ]] && existing+=("$p"); done
 
 block() {
-  sed -n "/<!-- drift:begin $1 -->/,/<!-- drift:end -->/p" STACK.md \
-    | grep -vE '<!--|^[[:space:]]*$' | sed 's/^[[:space:]]*//' | sort -u
+  sed -n "/<!-- drift:begin $1 -->/,/<!-- drift:end -->/p" STACK.md |
+    grep -vE '<!--|^[[:space:]]*$' | sed 's/^[[:space:]]*//' | sort -u
 }
 
-pub_keys() { yq -r ".${2} // {} | keys | .[]" "$1" 2>/dev/null \
-  | grep -vE '^(flutter|flutter_test|integration_test)$' | sort -u; }
+pub_keys() { yq -r ".${2} // {} | keys | .[]" "$1" 2>/dev/null |
+  grep -vE '^(flutter|flutter_test|integration_test)$' | sort -u; }
 
 gomod_direct() {
   awk '
@@ -37,16 +57,21 @@ compare() { # tier label actual
 }
 
 for spec in "core-runtime:packages/weft_core/pubspec.yaml:dependencies" \
-            "core-dev:packages/weft_core/pubspec.yaml:dev_dependencies" \
-            "app-runtime:apps/weft_app/pubspec.yaml:dependencies" \
-            "app-dev:apps/weft_app/pubspec.yaml:dev_dependencies"; do
+  "core-dev:packages/weft_core/pubspec.yaml:dev_dependencies" \
+  "app-runtime:apps/weft_app/pubspec.yaml:dependencies" \
+  "app-dev:apps/weft_app/pubspec.yaml:dev_dependencies"; do
   IFS=: read -r tier file section <<<"$spec"
-  [[ -f "$file" ]] || { err "$file missing"; continue; }
+  if [[ ! -f "$file" ]]; then
+    absent "$file" "$tier"
+    continue
+  fi
   compare "$tier" "$file" "$(pub_keys "$file" "$section")"
 done
 
 if [[ -f relay/go.mod ]]; then
   compare relay relay/go.mod "$(gomod_direct)"
+else
+  absent relay/go.mod relay
 fi
 
 # just recipes referenced in our docs must exist
@@ -55,7 +80,7 @@ if command -v just >/dev/null; then
   while read -r r; do
     [[ -n "$r" ]] || continue
     grep -qx "$r" <<<"$recipes" || err "docs reference missing recipe: just $r"
-  done < <(grep -rhoE '\bjust [a-z][a-z0-9-]+' "${existing[@]}" 2>/dev/null | awk '{print $2}' | sort -u)
+  done < <(grep -rhoE '`just [a-z][a-z0-9-]+' "${existing[@]}" 2>/dev/null | sed 's/^`//' | awk '{print $2}' | sort -u)
 fi
 
 # allowlisted skills must be vendored
@@ -65,8 +90,8 @@ else
   while read -r s; do
     [[ -n "$s" ]] || continue
     [[ -f ".agents/skills/$s/SKILL.md" ]] || err "allowlisted skill missing: $s"
-  done < <(grep -oE '"action": "skill", "resource": "[^"]+", "effect": "(allow|ask)"' opencode.jsonc \
-            | sed -E 's/.*"resource": "([^"]+)".*/\1/' | grep -v '\*' | sort -u)
+  done < <(grep -oE '"action": "skill", "resource": "[^"]+", "effect": "(allow|ask)"' opencode.jsonc |
+    sed -E 's/.*"resource": "([^"]+)".*/\1/' | grep -v '\*' | sort -u)
 fi
 
 # referenced ADRs must exist or be listed as planned
@@ -86,5 +111,11 @@ if [[ -f docs/TESTING.md && -f PRD.md ]]; then
   done < <(grep -ohE '\b(FR|CR|NFR|OR|PR|DR)-[0-9]{2}\b' docs/TESTING.md | sort -u)
 fi
 
-(( fail == 0 )) && echo "drift: ok"
+if ((fail == 0)); then
+  if ((pending > 0)); then
+    echo "drift: ok ($pending manifest tier(s) pending — see DRIFT-PENDING above)"
+  else
+    echo "drift: ok"
+  fi
+fi
 exit $fail

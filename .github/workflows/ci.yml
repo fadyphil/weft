@@ -12,7 +12,32 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # M0 assembles the tree bottom-up: relay (#3), core (#2), app (#5). A job pointed
+  # at a subtree that does not exist yet cannot distinguish "not built" from "broken",
+  # so it fails for a reason no PR could fix. Until a subtree exists its job is
+  # skipped and named — never silently green. Issue #9 deletes this job.
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      core: ${{ steps.tree.outputs.core }}
+      relay: ${{ steps.tree.outputs.relay }}
+      app: ${{ steps.tree.outputs.app }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: tree
+        run: |
+          echo "core=$([ -f packages/weft_core/pubspec.yaml ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "relay=$([ -f relay/go.mod ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "app=$([ -f apps/weft_app/pubspec.yaml ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - name: Report tree
+        run: |
+          echo "core=${{ steps.tree.outputs.core }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "relay=${{ steps.tree.outputs.relay }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "app=${{ steps.tree.outputs.app }}" >> "$GITHUB_STEP_SUMMARY"
+
   core:
+    needs: detect
+    if: needs.detect.outputs.core == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -30,6 +55,8 @@ jobs:
         working-directory: packages/weft_core
 
   relay:
+    needs: detect
+    if: needs.detect.outputs.relay == 'true'
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -54,6 +81,8 @@ jobs:
         working-directory: relay
 
   app:
+    needs: detect
+    if: needs.detect.outputs.app == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -70,6 +99,7 @@ jobs:
         working-directory: apps/weft_app
 
   gates:
+    needs: detect
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -81,9 +111,19 @@ jobs:
       - run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - uses: extractions/setup-just@v2
       - run: just architecture
+      # drift names every unchecked manifest tier as DRIFT-PENDING. It is loud, so a
+      # missing tier cannot hide; WEFT_STRICT_MANIFESTS=1 turns it into a failure and
+      # issue #9 sets it once the tree is complete.
       - run: just drift
       - uses: hadolint/hadolint-action@v3.1.0
+        if: needs.detect.outputs.relay == 'true'
         with:
           dockerfile: relay/Dockerfile
           failure-threshold: error
-      - uses: rhysd/actionlint@v1
+      # rhysd/actionlint is not a GitHub Action — it publishes no action.yml, so
+      # `uses: rhysd/actionlint@v1` failed the whole job during *Set up job*, before
+      # any step could log a reason. Install the binary the way its README says.
+      - name: actionlint
+        run: |
+          GOBIN="$HOME/.local/bin" go install github.com/rhysd/actionlint/cmd/actionlint@latest
+          actionlint
