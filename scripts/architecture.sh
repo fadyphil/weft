@@ -4,9 +4,11 @@ set -euo pipefail
 fail=0
 
 check() { # description pattern paths...
-  local desc="$1" pat="$2"; shift 2
+  local desc="$1" pat="$2"
+  shift 2
   if grep -rInE "$pat" "$@" 2>/dev/null; then
-    echo "FAIL: $desc"; fail=1
+    echo "FAIL: $desc"
+    fail=1
   fi
 }
 

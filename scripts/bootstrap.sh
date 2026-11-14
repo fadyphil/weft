@@ -31,9 +31,11 @@ BIN_TOOLS=(
   "age|FiloSottile/age|optional"
   "rclone|rclone/rclone|optional"
 )
-APT_TOOLS=(shellcheck scrcpy postgresql-client)
 
-die() { echo "ERROR: $*" >&2; exit 1; }
+die() {
+  echo "ERROR: $*" >&2
+  exit 1
+}
 for t in curl jq go tar; do command -v "$t" >/dev/null || die "$t is required"; done
 
 go_version_of() { go version -m "$1" 2>/dev/null | awk '$1=="mod"{print $3; exit}'; }
@@ -42,9 +44,9 @@ pick_asset() { # release-json -> url, prefer tar.gz > zip > raw
   local j="$1" urls
   urls="$(jq -r '.assets[]
     | select(.name | test("sha256|sha512|checksum|\\.asc$|\\.sig$|\\.pem$|\\.json$|\\.apk$|\\.deb$|\\.rpm$";"i") | not)
-    | .browser_download_url' <<<"$j" \
-    | grep -Ei 'linux' | grep -Ei 'amd64|x86_64|x64' \
-    | grep -Eiv 'arm|386|i386|riscv|ppc|s390|mips|loong' || true)"
+    | .browser_download_url' <<<"$j" |
+    grep -Ei 'linux' | grep -Ei 'amd64|x86_64|x64' |
+    grep -Eiv 'arm|386|i386|riscv|ppc|s390|mips|loong' || true)"
   [[ -n "$urls" ]] || return 1
   grep -E '\.tar\.gz$|\.tgz$' <<<"$urls" | head -1 && return 0
   grep -E '\.zip$' <<<"$urls" | head -1 && return 0
@@ -59,35 +61,50 @@ verify_digest() { # release-json asset-name file
     die "sha256 mismatch for $2"
   fi
   local sum_url sum_name
-  sum_url="$(jq -r '.assets[].browser_download_url' <<<"$1" \
-    | grep -Ei 'checksums|sha256sums|\.sha256$|\.sha512$' | head -1 || true)"
+  sum_url="$(jq -r '.assets[].browser_download_url' <<<"$1" |
+    grep -Ei 'checksums|sha256sums|\.sha256$|\.sha512$' | head -1 || true)"
   [[ -n "$sum_url" ]] || die "no digest or checksum published for $2 — verify manually, record hash in an ADR"
   sum_name="$(basename "$sum_url")"
   curl -fsSL -o "$(dirname "$3")/$sum_name" "$sum_url"
   want="$(grep -F "$2" "$(dirname "$3")/$sum_name" | awk '{print $1}' | head -1)"
   [[ -n "$want" ]] || want="$(awk 'NF==1{print $1; exit}' "$(dirname "$3")/$sum_name")"
   case "${#want}" in
-    64)  (cd "$(dirname "$3")" && echo "$want  $2" | sha256sum -c -) ;;
-    128) (cd "$(dirname "$3")" && echo "$want  $2" | sha512sum -c -) ;;
-    *)   die "unrecognised checksum for $2" ;;
+  64) (cd "$(dirname "$3")" && echo "$want  $2" | sha256sum -c -) ;;
+  128) (cd "$(dirname "$3")" && echo "$want  $2" | sha512sum -c -) ;;
+  *) die "unrecognised checksum for $2" ;;
   esac
 }
 
 bin_install() { # name repo tag requirement
   local name="$1" repo="$2" tag="$3" req="$4" j url asset tmp found
-  j="$(curl -fsSL "$API/$repo/releases/tags/$tag")" || { [[ "$req" == optional ]] && { echo "SKIP $name (no release $tag)"; return 0; }; die "cannot read $repo@$tag"; }
-  url="$(pick_asset "$j")" || { [[ "$req" == optional ]] && { echo "SKIP $name (no linux amd64 asset)"; return 0; }; die "no linux amd64 asset for $repo@$tag"; }
+  j="$(curl -fsSL "$API/$repo/releases/tags/$tag")" || {
+    [[ "$req" == optional ]] && {
+      echo "SKIP $name (no release $tag)"
+      return 0
+    }
+    die "cannot read $repo@$tag"
+  }
+  url="$(pick_asset "$j")" || {
+    [[ "$req" == optional ]] && {
+      echo "SKIP $name (no linux amd64 asset)"
+      return 0
+    }
+    die "no linux amd64 asset for $repo@$tag"
+  }
   asset="$(basename "$url")"
   tmp="$(mktemp -d)"
   echo "==> $name $tag ($asset)"
   curl -fsSL -o "$tmp/$asset" "$url"
   verify_digest "$j" "$asset" "$tmp/$asset"
   case "$asset" in
-    *.tar.gz|*.tgz) tar -xzf "$tmp/$asset" -C "$tmp" ;;
-    *.tar.xz)       tar -xJf "$tmp/$asset" -C "$tmp" ;;
-    *.zip)          command -v unzip >/dev/null || die "unzip needed for $asset"; unzip -q "$tmp/$asset" -d "$tmp" ;;
-    *.gz)           gunzip -c "$tmp/$asset" >"$tmp/$name" ;;
-    *)              cp "$tmp/$asset" "$tmp/$name" ;;
+  *.tar.gz | *.tgz) tar -xzf "$tmp/$asset" -C "$tmp" ;;
+  *.tar.xz) tar -xJf "$tmp/$asset" -C "$tmp" ;;
+  *.zip)
+    command -v unzip >/dev/null || die "unzip needed for $asset"
+    unzip -q "$tmp/$asset" -d "$tmp"
+    ;;
+  *.gz) gunzip -c "$tmp/$asset" >"$tmp/$name" ;;
+  *) cp "$tmp/$asset" "$tmp/$name" ;;
   esac
   found="$(find "$tmp" -type f -name "$name" | head -1)"
   [[ -n "$found" ]] || found="$(find "$tmp" -type f -perm -u+x ! -name "$asset" | head -1)"
@@ -99,24 +116,29 @@ bin_install() { # name repo tag requirement
 resolve() {
   local only=("$@") failures=()
   [[ -f "$ENV_FILE" ]] || : >"$ENV_FILE"
-  (( ${#only[@]} == 0 )) && : >"$ENV_FILE"
+  ((${#only[@]} == 0)) && : >"$ENV_FILE"
 
   in_only() {
-    (( ${#only[@]} == 0 )) && return 0
-    local n; for n in "${only[@]}"; do [[ "$n" == "$1" ]] && return 0; done
+    ((${#only[@]} == 0)) && return 0
+    local n
+    for n in "${only[@]}"; do [[ "$n" == "$1" ]] && return 0; done
     return 1
   }
-  record() { sed -i "/^$1=/d" "$ENV_FILE"; echo "$1=$2" >>"$ENV_FILE"; }
+  record() {
+    sed -i "/^$1=/d" "$ENV_FILE"
+    echo "$1=$2" >>"$ENV_FILE"
+  }
 
   for e in "${GO_TOOLS[@]}"; do
     local name="${e%%|*}" pkg="${e#*|}" ver
     in_only "$name" || continue
     echo "==> $name (go install $pkg@latest)"
-    if GOBIN="$BIN" go install "$pkg@latest" \
-       && ver="$(go_version_of "$BIN/$name")" && [[ -n "$ver" ]]; then
+    if GOBIN="$BIN" go install "$pkg@latest" &&
+      ver="$(go_version_of "$BIN/$name")" && [[ -n "$ver" ]]; then
       record "$name" "$ver"
     else
-      echo "FAILED: $name — go install $pkg"; failures+=("$name")
+      echo "FAILED: $name — go install $pkg"
+      failures+=("$name")
     fi
   done
 
@@ -128,17 +150,23 @@ resolve() {
     tag="$(curl -fsSL "$API/$repo/releases/latest" 2>/dev/null | jq -r '.tag_name // empty' || true)"
     if [[ -z "$tag" ]]; then
       echo "FAILED: $name — no release at $API/$repo/releases/latest (check owner/repo)"
-      failures+=("$name"); continue
+      failures+=("$name")
+      continue
     fi
     bin_install "$name" "$repo" "$tag" "$req"
     record "$name" "${tag#v}"
   done
 
-  echo; echo "--- $ENV_FILE ---"; cat "$ENV_FILE"
-  if (( ${#failures[@]} )); then
-    echo; echo "FAILED: ${failures[*]}"; return 1
+  echo
+  echo "--- $ENV_FILE ---"
+  cat "$ENV_FILE"
+  if ((${#failures[@]})); then
+    echo
+    echo "FAILED: ${failures[*]}"
+    return 1
   fi
-  echo; echo "All resolved. Review, commit, then: just bootstrap"
+  echo
+  echo "All resolved. Review, commit, then: just bootstrap"
 }
 
 install_pinned() {
@@ -147,18 +175,32 @@ install_pinned() {
   # shellcheck disable=SC1090
   source "$ENV_FILE"
   for e in "${GO_TOOLS[@]}"; do
-    local name="${e%%|*}" pkg="${e#*|}" ver="${!name:-}"
+    local name="${e%%|*}" pkg="${e#*|}"
+    local ver="${!name:-}"
     [[ -n "$ver" ]] || die "$name missing from $ENV_FILE"
-    echo "==> go install $pkg@$ver"; GOBIN="$BIN" go install "$pkg@$ver"
+    echo "==> go install $pkg@$ver"
+    GOBIN="$BIN" go install "$pkg@$ver"
   done
   for e in "${BIN_TOOLS[@]}"; do
     IFS='|' read -r name repo req <<<"$e"
     local ver="${!name:-}" tag=""
-    [[ -n "$ver" ]] || { [[ "$req" == optional ]] && continue; die "$name missing from $ENV_FILE"; }
+    [[ -n "$ver" ]] || {
+      [[ "$req" == optional ]] && continue
+      die "$name missing from $ENV_FILE"
+    }
     for t in "v$ver" "$ver"; do
-      curl -fsSL -o /dev/null "$API/$repo/releases/tags/$t" && { tag="$t"; break; }
+      curl -fsSL -o /dev/null "$API/$repo/releases/tags/$t" && {
+        tag="$t"
+        break
+      }
     done
-    [[ -n "$tag" ]] || { [[ "$req" == optional ]] && { echo "SKIP $name $ver"; continue; }; die "no release $ver for $repo"; }
+    [[ -n "$tag" ]] || {
+      [[ "$req" == optional ]] && {
+        echo "SKIP $name $ver"
+        continue
+      }
+      die "no release $ver for $repo"
+    }
     bin_install "$name" "$repo" "$tag" "$req"
   done
   doctor
@@ -169,10 +211,14 @@ doctor() {
   for t in just lefthook golangci-lint git-cliff gitleaks govulncheck shfmt shellcheck yq actionlint age rclone scrcpy psql; do
     local pinned="-"
     [[ -f "$ENV_FILE" ]] && pinned="$(grep -E "^$t=" "$ENV_FILE" | cut -d= -f2 || true)"
-    if command -v "$t" >/dev/null; then printf '%-16s %-14s %s\n' "$t" "${pinned:--}" ok
+    if command -v "$t" >/dev/null; then
+      printf '%-16s %-14s %s\n' "$t" "${pinned:--}" ok
     else printf '%-16s %-14s %s\n' "$t" "${pinned:--}" MISSING; fi
   done
-  echo "---"; dart --version; go version; flutter --version | head -1
+  echo "---"
+  dart --version
+  go version
+  flutter --version | head -1
   case ":$PATH:" in *":$BIN:"*) ;; *) echo "WARNING: $BIN not on PATH" ;; esac
 }
 
@@ -189,9 +235,12 @@ pin_actions() {
 }
 
 case "${1:-}" in
-  resolve) shift; resolve "$@" ;;
-  install) install_pinned ;;
-  doctor) doctor ;;
-  pin-actions) pin_actions ;;
-  *) die "usage: $0 {resolve|install|doctor|pin-actions}" ;;
+resolve)
+  shift
+  resolve "$@"
+  ;;
+install) install_pinned ;;
+doctor) doctor ;;
+pin-actions) pin_actions ;;
+*) die "usage: $0 {resolve|install|doctor|pin-actions}" ;;
 esac
