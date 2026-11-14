@@ -38,7 +38,7 @@ build. A `sed` that matches nothing is reported `BROKEN` and also fails — the 
 go stale silently.
 
 | Mutant | Invariant |
-|---|---|
+| --- | --- |
 | reverse-tiebreak | CR-05 |
 | no-causal-buffer | CR-04 |
 | non-idempotent-apply | CR-03 |
@@ -110,6 +110,7 @@ Definition of "correct" — the invariants themselves, authored before any prope
 `STACK.md`, `GLOSSARY.md`, `docs/CODING-STANDARDS.md`, `docs/adr/README.md`.
 
 **Add checklist items:**
+
 - [ ] `just drift` green — docs and code agree mechanically.
 - [ ] Sabotage suite armed with all eight mutants; every one killed.
 - [ ] `opencode.jsonc` committed; skill allowlist matches vendored skills on disk.

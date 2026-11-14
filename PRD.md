@@ -1,6 +1,6 @@
 # WEFT — Product Requirements Document
 
-**Version 1.0 · APPROVED — READY TO BUILD**
+**Version 1.1 · APPROVED — READY TO BUILD**
 
 A collaborative plain-text editor where devices edit **offline** and always **converge** — powered by a hand-built **Tree-Fugue CRDT** in pure Dart, a Flutter client, and a deliberately dumb Go relay.
 
@@ -56,7 +56,8 @@ Single source of truth for the build. All decisions locked in grilling rounds Q1
 |---|---|
 | Project | **Weft** (working title "Loom" retired). Repo `weft`, MIT license, public from commit #1. |
 | Owner / decider | Fady Philip. Agent produces code; Fady owns correctness, invariants, and defendability. |
-| Doc version / status | 1.0 · **APPROVED — READY TO BUILD**. Issued 2026-11-13. |
+| Doc version / status | 1.1 · **APPROVED — READY TO BUILD**. Issued 2026-11-13, amended 2026-11-13. |
+| Process contract | `AGENTS.md` owns process/tooling. `STACK.md` owns dependencies. `docs/CODING-STANDARDS.md` owns code rules. `GLOSSARY.md` owns vocabulary. |
 | Supersedes | `project-foundation.md` v1.0 — partially. Keep its §4 theory, §5 Fugue, §8 ownership, §10 testing, §14 narrative. Deltas in [§19](#19--agent-operating-contract). |
 | Hard wall | **2027-01-10** — military-service application. Not elastic. 8 build weeks + 4 polish days. |
 | Cadence | ~35 h/week build + 5 h/week devlog ≈ **280 build hours**. No formal job applications during build. |
@@ -637,12 +638,14 @@ Manual review will not catch concurrent-correctness bugs. Properties + simulatio
 
 | Layer | Tool | Scope | Gate |
 |---|---|---|---|
-| L1 Unit | `dart test`, `go test` | Per-op correctness, serialization, storage recovery, relay dedup/cursor SQL. | Every PR. |
+| L1 Unit | `dart test`, `go test` | Core: public API only (`FugueDoc`, `OpStore`). Relay: black-box WS/HTTP + DB rows. App: bloc + domain/data. **No widget tests.** | Every PR |
 | L2 Property | `glados` | Random op sequences across replicas; assert CR-01…CR-06. | 100 cases/property per PR; 500 nightly. |
 | L3 Simulation | Hand-built seeded scheduler | Delay/drop/dup/reorder/partition; eventual delivery; convergence. | 100 seeds per PR; 1,000 nightly. |
-| L4 Manual | Two physical Android phones | Airplane-mode partition, arbitrary reconnect order, kill/reopen. | M3 exit + demo video. |
+| L4 Manual | Two physical Android phones | Airplane-mode partition, arbitrary reconnect order, kill/reopen. Recorded in `docs/e2e.md`. | M3 exit + demo video |
 
 ### Property catalog
+
+Assertions use `package:checks`. Properties target the public API only, so swapping the engine implementation requires no test edits — demonstrated at M2 when the stub is replaced.
 
 | ID | Property | Generator | Shrink target |
 |---|---|---|---|
@@ -669,6 +672,31 @@ Manual review will not catch concurrent-correctness bugs. Properties + simulatio
 - Single-threaded, seeded PRNG; no wall-clock, no real sockets. Every failure prints the seed and a minimized op trace.
 - "Drop" means delayed retransmission, not permanent loss — `eventualDelivery:true` must deliver every unique op eventually.
 - Simulator is hand-built (no library). It is the second signature skill alongside the CRDT.
+
+### Sabotage suite (replaces coverage as the quality gate)
+
+Eight deliberately wrong merge variants live in `scripts/sabotage.manifest`. Each maps to an invariant. `just sabotage` applies one variant at a time and runs the property + simulator suite; the suite **must fail**. A surviving mutant means the tests are too weak and fails the build. A `sed` that matches nothing is reported `BROKEN` and also fails — the manifest cannot go stale silently.
+
+| Mutant | Invariant |
+|---|---|
+| reverse-tiebreak | CR-05 |
+| no-causal-buffer | CR-04 |
+| non-idempotent-apply | CR-03 |
+| physical-tombstone-delete | CR-06 |
+| index-instead-of-nodeid | CR-01 |
+| ignore-left-origin | CR-05 |
+| drop-opid-dedup | CR-03 |
+| swap-traversal-order | CR-01 |
+
+All entries are armed during M1. From M1 exit, nightly runs `just sabotage --strict`.
+
+### Coverage
+
+Coverage is a hygiene ratchet, not a headline gate: `weft_core` coverage may never fall below the baseline locked at end of M1. Coverage measures lines executed, not assertions made, and is a weak correctness signal for a CRDT. The sabotage suite is the real gate.
+
+### Benchmarks
+
+Absolute NFR budgets are verified locally on the Dell under fixed conditions (plugged in, same governor, warmup). CI benchmark numbers are informational. Nightly local runs append to `docs/BENCHMARKS.md`; a ticket opens only after **two consecutive** regressions >10% against the median of the last five runs.
 
 ### Traceability
 
@@ -710,6 +738,10 @@ T1.5 on $0: staging/prod split, CI/CD, backups with a real restore drill, monito
 | Monitoring | Grafana Cloud free + Sentry dev + UptimeRobot | 10k series / 50 GB logs / 14-day retention; 5k errors/mo; 5-min ping doubles as keep-alive. |
 | Backups | `pg_dump` → age encrypt → rclone → Google Drive | Nightly cron; one real restore drill in M4. |
 | Distribution | APK via GitHub Releases | Tag `v*` triggers build. No Play Store. |
+| Local gates | lefthook | pre-commit (<10 s): format, analyze, secret scan · commit-msg: Conventional Commits · pre-push: `just ci` |
+| Command entry point | just | Every gate is `just <recipe>`; local and CI cannot drift |
+| Drift gate | `just drift` | STACK vs manifests · doc recipes vs justfile · allowlisted skills on disk · ADR references · requirement IDs |
+| Container image | `gcr.io/distroless/static-debian12` | No shell in the relay image |
 
 ### FIG 09 · CI/CD pipeline
 
@@ -822,13 +854,15 @@ gantt
 
 | # | Dates | Milestone | Exit criteria |
 |---|---|---|---|
-| M0 | Nov 12–18 | Walking skeleton | Public repo + CI green; relay live on Render/Neon with public URL; two phones exchange **stub** ops; property harness runs against stub. |
+| M0 | Nov 13–20 | Walking skeleton | Public repo + CI green; relay live on Render/Neon with public URL; two phones exchange **stub** ops; property harness runs against stub; Android build meets AGP ≥8.12.1, Gradle ≥8.13, Java 17. |
 | M1 | Nov 19–Dec 9 | Fugue core correct | Wk2 tree/NodeID/insert/leftOrigin/tombstone/serialization; Wk3 merge/causal buffer/tie-break/idempotence; Wk4 simulator. Hundreds of generated cases converge. **Checkpoint Dec 9.** |
 | M2 | Dec 10–16 | Real client + persistence | Stub swapped for Fugue behind same interface; file log + snapshot + crash recovery; doc list, pairing, sync UI; kill/reopen loses nothing. |
 | M3 | Dec 17–23 | Two-device sync | Cursor resync on reconnect; two physical phones, airplane mode, arbitrary reconnect order → always converge. |
 | M4 | Dec 24–30 | Ops + numbers | Staging/prod split; CD via deploy hook; backup **and restore drill done**; monitoring live; simulation numbers published. |
 | M5 | Dec 31–Jan 6 | Delivery | Self-contained README; ADRs complete; demo video recorded; APK on GitHub Releases. |
 | P | Jan 7–10 | The gate | 10-minute unaided recording; CV updated (git-rs honest framing); case-study devlog; slippage buffer. |
+
+> **Toolchain note.** The full toolchain upgrade (Q60) precedes repo creation and consumes 1–2 h. M0 therefore targets Nov 19 with buffer to Nov 20. The hard wall of 2027-01-10 is unchanged; the buffer absorbs the slip.
 
 ### FIG 11 · Build-hour allocation (~280 h)
 
@@ -899,12 +933,15 @@ gitGraph
 |---|---|
 | PR-01 | Public monorepo `weft`, MIT, from commit #1. Conventional commits; pre-commit hooks run format + analyze. |
 | PR-02 | Branch per card; PR + self-review; CI required checks block merge. WIP ≤2 on the issues board (Backlog → In Progress → Review → Done). |
-| PR-03 | **Defendability gate:** every core PR description contains five lines, in Fady's own words, no file open, explaining what the merge logic does and why it is correct. Agent must not author this text. |
+| PR-03 | **Defendability gate:** every PR touching `packages/weft_core` carries five lines written by Fady, in his own words, no file open — what changed, why it is correct, which invariant it protects, which test proves it, what could still break. The agent prompts for this text and must never write it. |
 | PR-04 | ADR for every major decision (list below). |
 | PR-05 | Weekly devlog (5 h/week): LinkedIn post + `docs/devlog/NN.md`. Doubles as marketing and the explain-it-back ritual. |
-| PR-06 | AI delegation per FIG 13. Must-own items are never generated blind. |
+| PR-06 | Skill routing per `opencode.jsonc`: default-deny, explicit allow/ask tiers. Conflicting skills are denied, not deleted. spec-kit, Artemis and EGM are forbidden in this repo. |
 | PR-07 | git-rs stays public; defend git internals + interop oracle; state plainly it was agent-assisted; no Rust proficiency claim on CV. |
 | PR-08 | No formal job applications during build (military certificate blocks employment). Artifact converts when status resolves. |
+| PR-09 | Test-strength gate: the sabotage suite must kill every armed mutant. Coverage is a ratchet only. |
+| PR-10 | Model-agnostic config: no `model` key in repo config. Capability floor in `AGENTS.md`; each core PR records the model used. |
+| PR-11 | Dependency policy: `STACK.md` is the contract. Listed optional packages need a STACK update; anything unlisted needs an ADR. |
 
 ### Planned ADRs
 
@@ -950,7 +987,7 @@ quadrantChart
 - CI YAML, test-file structure, doc formatting.
 
 **Must be Fady's (non-negotiable)**
-- Definition of "correct" — the invariants themselves.
+- Definition of "correct" — the invariants themselves, authored before any property test.
 - Tie-breaking logic in the merge algorithm.
 - Diagnosing any convergence failure.
 - README design-decisions section, own words.
@@ -971,6 +1008,10 @@ The recording is the real finish line. Code that cannot be defended is not done.
 | DR-05 | Defendability recording | 10 minutes, unaided, answering all five gate questions. Linked from README. |
 | DR-06 | ADR set + superseded-foundation note | All planned ADRs written; foundation doc marked superseded with deltas. |
 
+### Required documents
+
+`README.md`, `PRD.md`, `AGENTS.md`, `STACK.md`, `GLOSSARY.md`, `docs/CODING-STANDARDS.md`, `docs/TESTING.md`, `docs/RUNNING.md`, `docs/BENCHMARKS.md`, `docs/SECURITY.md`, `docs/e2e.md`, `docs/adr/README.md`, `docs/adr/`, `docs/devlog/`, `CHANGELOG.md`.
+
 ### Definition of done
 
 - [ ] Two physical devices converge after arbitrary offline periods, in either reconnect order.
@@ -982,6 +1023,9 @@ The recording is the real finish line. Code that cannot be defended is not done.
 - [ ] Demo video exists; APK released; live URL documented with cold-start caveat.
 - [ ] Restore drill completed and recorded in an ADR.
 - [ ] CI green on main; nightly verification running.
+- [ ] `just drift` green — docs and code agree mechanically.
+- [ ] Sabotage suite armed with all eight mutants; every one killed.
+- [ ] `opencode.jsonc` committed; skill allowlist matches vendored skills on disk.
 - [ ] 10-minute unaided defendability recording complete — **this is the real finish line.**
 
 ### Demo video script
@@ -1030,7 +1074,7 @@ Mirror this section into `AGENTS.md` verbatim. This PRD is the single source of 
 | "Self-taught Rust, built git-rs from scratch" | Agent-assisted; cannot defend Rust. No proficiency claim. |
 | "Mobile & Systems Engineer" identity | **Flutter-first**, engine as differentiator. |
 | Relay queue unspecified | **Postgres op-log + per-device cursors** ([§11](#11--relay--database)). |
-| Core-first phase order | **Walking skeleton first** (M0). |
+| Core-first phase order | Walking skeleton first (M0), stub engine satisfies CR-01/02/03; P-04/05/06 skipped until M1. |
 | Interviews as immediate target | **Durable artifact; conversion deferred** until military status resolves. |
 
 ### Operating rules
@@ -1046,6 +1090,10 @@ Mirror this section into `AGENTS.md` verbatim. This PRD is the single source of 
 9. Respect the Dec 9 checkpoint and the [§15](#15--schedule--milestones) cut order. Never cut properties, simulator, README design decisions, or the two-phone demo.
 10. Log metadata only; never document payloads. Scrub Sentry events.
 11. Every milestone ends with a devlog entry and updated exit-criteria evidence.
+12. `AGENTS.md` is the process source of truth; this PRD is the product source of truth.
+13. Never invoke spec-kit, Artemis, or EGM in this repo.
+14. Never write Fady's five-line defendability text.
+15. Never add a dependency absent from `STACK.md` without an ADR.
 
 ### Task routing
 
