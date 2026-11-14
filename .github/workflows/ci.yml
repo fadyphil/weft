@@ -26,14 +26,11 @@ jobs:
       - uses: actions/checkout@v4
       - id: tree
         run: |
-          echo "core=$([ -f packages/weft_core/pubspec.yaml ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
-          echo "relay=$([ -f relay/go.mod ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
-          echo "app=$([ -f apps/weft_app/pubspec.yaml ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
-      - name: Report tree
-        run: |
-          echo "core=${{ steps.tree.outputs.core }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "relay=${{ steps.tree.outputs.relay }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "app=${{ steps.tree.outputs.app }}" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "core=$([ -f packages/weft_core/pubspec.yaml ] && echo true || echo false)"
+            echo "relay=$([ -f relay/go.mod ] && echo true || echo false)"
+            echo "app=$([ -f apps/weft_app/pubspec.yaml ] && echo true || echo false)"
+          } | tee -a "$GITHUB_OUTPUT" "$GITHUB_STEP_SUMMARY"
 
   core:
     needs: detect
@@ -110,8 +107,15 @@ jobs:
       - run: GOBIN=$HOME/.local/bin go install github.com/mikefarah/yq/v4@latest
       - run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - uses: extractions/setup-just@v2
+      # The shell checks run here as well as in pre-push, so the scripts cannot rot
+      # between the hook and the merge. They need no Dart or Flutter toolchain, which
+      # is why they are separate recipes from `just lint` and `just fmt-check`.
+      - run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - run: GOBIN="$HOME/.local/bin" go install mvdan.cc/sh/v3/cmd/shfmt@latest
+      - run: just lint-scripts
+      - run: just fmt-check-scripts
       - run: just architecture
-      # drift names every unchecked manifest tier as DRIFT-PENDING. It is loud, so a
+      # drift names every unchecked manifest tier as DRIFT-UNCHECKED. It is loud, so a
       # missing tier cannot hide; WEFT_STRICT_MANIFESTS=1 turns it into a failure and
       # issue #9 sets it once the tree is complete.
       - run: just drift

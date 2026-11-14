@@ -4,22 +4,24 @@
 # doc scope excludes vendored skills, planned ADRs accepted.
 set -euo pipefail
 fail=0
-pending=0
+unchecked=0
 err() {
   echo "DRIFT: $*"
   fail=1
 }
 
-# A manifest that does not exist yet cannot be compared. That is a tracked state —
-# packages/weft_core (#2), apps/weft_app (#5), relay (#3) — not a drift failure.
-# It is reported, never hidden. WEFT_STRICT_MANIFESTS=1 turns every pending tier
-# into a failure; issue #9 flips that on once the walking skeleton is complete.
+# A manifest inside a subtree that does not exist yet cannot be compared. That is a
+# tracked state — packages/weft_core (#2), apps/weft_app (#5), relay (#3) — not a
+# drift failure. It is reported by name, never hidden. A manifest missing from a
+# subtree that *does* exist is a plain failure: something was deleted or renamed.
+# WEFT_STRICT_MANIFESTS=1 turns every unchecked tier into a failure; issue #9 sets
+# it once the walking skeleton is complete.
 absent() {
   if [[ "${WEFT_STRICT_MANIFESTS:-0}" == "1" ]]; then
-    err "$1 missing"
+    err "$1 absent"
   else
-    echo "DRIFT-PENDING: $1 missing — $2 unchecked"
-    pending=$((pending + 1))
+    echo "DRIFT-UNCHECKED: $1 absent — $2 not compared"
+    unchecked=$((unchecked + 1))
   fi
 }
 
@@ -62,7 +64,11 @@ for spec in "core-runtime:packages/weft_core/pubspec.yaml:dependencies" \
   "app-dev:apps/weft_app/pubspec.yaml:dev_dependencies"; do
   IFS=: read -r tier file section <<<"$spec"
   if [[ ! -f "$file" ]]; then
-    absent "$file" "$tier"
+    if [[ -d "$(dirname "$file")" ]]; then
+      err "$file missing from an existing subtree"
+    else
+      absent "$file" "$tier"
+    fi
     continue
   fi
   compare "$tier" "$file" "$(pub_keys "$file" "$section")"
@@ -70,6 +76,8 @@ done
 
 if [[ -f relay/go.mod ]]; then
   compare relay relay/go.mod "$(gomod_direct)"
+elif [[ -d relay ]]; then
+  err "relay/go.mod missing from an existing subtree"
 else
   absent relay/go.mod relay
 fi
@@ -112,8 +120,8 @@ if [[ -f docs/TESTING.md && -f PRD.md ]]; then
 fi
 
 if ((fail == 0)); then
-  if ((pending > 0)); then
-    echo "drift: ok ($pending manifest tier(s) pending — see DRIFT-PENDING above)"
+  if ((unchecked > 0)); then
+    echo "drift: ok ($unchecked manifest tier(s) unchecked — see DRIFT-UNCHECKED above)"
   else
     echo "drift: ok"
   fi

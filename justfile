@@ -32,34 +32,42 @@ doctor:
 
 # ── Format / lint ────────────────────────────────────────────────────
 # The subtrees arrive in build order: relay (#3), core (#2), app (#5). Until one
-# exists, its checks are skipped by scripts/at.sh with the missing path named,
+# exists, its checks are skipped by scripts/in-subtree.sh with the missing path named,
 # instead of failing on a missing directory that no change in the PR could fix.
 # Set WEFT_STRICT_TREE=1 to turn a skip back into a failure.
 [group('quality')]
 fmt:
-    ./scripts/at.sh {{core}} dart format .
-    ./scripts/at.sh {{app}} dart format .
-    ./scripts/at.sh {{relay}} gofmt -w .
+    ./scripts/in-subtree.sh {{core}} dart format .
+    ./scripts/in-subtree.sh {{app}} dart format .
+    ./scripts/in-subtree.sh {{relay}} gofmt -w .
     shfmt -w scripts
 
+# The script checks are their own recipes because CI can run them without a Dart or
+# Flutter toolchain: the gates job has Go and a shell, and nothing else.
 [group('quality')]
-fmt-check:
-    ./scripts/at.sh {{core}} dart format --output=none --set-exit-if-changed .
-    ./scripts/at.sh {{app}} dart format --output=none --set-exit-if-changed .
-    ./scripts/at.sh {{relay}} sh -c 'test -z "$(gofmt -l .)"'
+fmt-check: fmt-check-scripts
+    ./scripts/in-subtree.sh {{core}} dart format --output=none --set-exit-if-changed .
+    ./scripts/in-subtree.sh {{app}} dart format --output=none --set-exit-if-changed .
+    ./scripts/in-subtree.sh {{relay}} sh -c 'test -z "$(gofmt -l .)"'
+
+[group('quality')]
+fmt-check-scripts:
     shfmt -d scripts
 
 [group('quality')]
-lint:
-    ./scripts/at.sh {{core}} dart analyze --fatal-infos
-    ./scripts/at.sh {{app}} flutter analyze
-    ./scripts/at.sh {{relay}} sh -c 'go vet ./... && golangci-lint run'
+lint: lint-scripts
+    ./scripts/in-subtree.sh {{core}} dart analyze --fatal-infos
+    ./scripts/in-subtree.sh {{app}} flutter analyze
+    ./scripts/in-subtree.sh {{relay}} sh -c 'go vet ./... && golangci-lint run'
+
+[group('quality')]
+lint-scripts:
     shellcheck scripts/*.sh
 
 # ── Codegen ──────────────────────────────────────────────────────────
 [group('build')]
 codegen:
-    ./scripts/at.sh {{app}} dart run build_runner build --delete-conflicting-outputs
+    ./scripts/in-subtree.sh {{app}} dart run build_runner build --delete-conflicting-outputs
 
 # ── Tests ────────────────────────────────────────────────────────────
 [group('test')]
@@ -67,45 +75,45 @@ test: test-core test-relay test-app
 
 [group('test')]
 test-core:
-    ./scripts/at.sh {{core}} dart test --exclude-tags=simulator,sabotage,benchmark
+    ./scripts/in-subtree.sh {{core}} dart test --exclude-tags=simulator,sabotage,benchmark
 
 [group('test')]
 test-relay:
-    ./scripts/at.sh {{relay}} go test -short -race ./...
+    ./scripts/in-subtree.sh {{relay}} go test -short -race ./...
 
 [group('test')]
 test-relay-integration: up
-    ./scripts/at.sh {{relay}} env DATABASE_URL="$STAGING_DATABASE_URL" go test -race -run Integration ./...
+    ./scripts/in-subtree.sh {{relay}} env DATABASE_URL="$STAGING_DATABASE_URL" go test -race -run Integration ./...
 
 [group('test')]
 test-app:
-    ./scripts/at.sh {{app}} flutter test
+    ./scripts/in-subtree.sh {{app}} flutter test
 
 [group('test')]
 sim seeds="100":
-    ./scripts/at.sh {{core}} env WEFT_SIM_SEEDS={{seeds}} dart test --tags=simulator
+    ./scripts/in-subtree.sh {{core}} env WEFT_SIM_SEEDS={{seeds}} dart test --tags=simulator
 
 [group('test')]
-sabotage:
-    @if [ -d {{core}}/lib ]; then ./scripts/sabotage.sh; else echo "skip: {{core}} absent — nothing to run"; fi
+sabotage *args:
+    ./scripts/in-subtree.sh --root {{core}} ./scripts/sabotage.sh {{args}}
 
 [group('test')]
 coverage:
-    ./scripts/at.sh {{core}} dart test --exclude-tags=simulator,sabotage,benchmark --coverage=coverage
-    ./scripts/at.sh {{core}} sh -c 'dart pub global activate coverage && dart pub global run coverage:format_coverage --lcov --in=coverage --out=coverage/lcov.info --report-on=lib'
-    ./scripts/at.sh {{core}} sh -c "dart pub global activate remove_from_coverage && dart pub global run remove_from_coverage -f coverage/lcov.info -r '\.g\.dart$'"
+    ./scripts/in-subtree.sh {{core}} dart test --exclude-tags=simulator,sabotage,benchmark --coverage=coverage
+    ./scripts/in-subtree.sh {{core}} sh -c 'dart pub global activate coverage && dart pub global run coverage:format_coverage --lcov --in=coverage --out=coverage/lcov.info --report-on=lib'
+    ./scripts/in-subtree.sh {{core}} sh -c "dart pub global activate remove_from_coverage && dart pub global run remove_from_coverage -f coverage/lcov.info -r '\.g\.dart$'"
 
 [group('test')]
 bench:
-    ./scripts/at.sh {{core}} dart test --tags=benchmark
+    ./scripts/in-subtree.sh {{core}} dart test --tags=benchmark
 
 [group('test')]
 e2e:
     @echo "Two-phone manual checklist: docs/e2e.md (record results there)."
-    ./scripts/at.sh {{app}} flutter test integration_test
+    ./scripts/in-subtree.sh {{app}} flutter test integration_test
 
 # ── Gates ────────────────────────────────────────────────────────────
-# Every check that runs inside a subtree goes through scripts/at.sh, so an absent
+# Every check that runs inside a subtree goes through scripts/in-subtree.sh, so an absent
 # subtree is a named skip rather than a false failure. A skip protects nothing: as
 # soon as the directory exists the real check runs, and WEFT_STRICT_TREE=1 forbids
 # skipping entirely.
@@ -135,7 +143,7 @@ logs:
 
 [group('infra')]
 migrate:
-    ./scripts/at.sh {{relay}} goose -dir migrations postgres "$STAGING_DATABASE_URL" up
+    ./scripts/in-subtree.sh {{relay}} goose -dir migrations postgres "$STAGING_DATABASE_URL" up
 
 # ── Docs / release ───────────────────────────────────────────────────
 [group('docs')]
