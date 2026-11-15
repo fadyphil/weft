@@ -17,6 +17,7 @@ The editor is the demo surface. The engine is the project.
 | [STACK.md](STACK.md) | Dependency contract |
 | [GLOSSARY.md](GLOSSARY.md) | Shared vocabulary |
 | [docs/CODING-STANDARDS.md](docs/CODING-STANDARDS.md) | Code rules |
+| [docs/core/](docs/core/) | Kernel rules, order decisions, diagnosis protocol, goldens |
 | [docs/adr/](docs/adr/) | Architecture decision records |
 
 ## Development

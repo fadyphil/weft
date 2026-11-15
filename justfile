@@ -97,6 +97,12 @@ sim seeds="100":
 sabotage *args:
     ./scripts/in-subtree.sh --root {{core}} ./scripts/sabotage.sh {{args}}
 
+# Placeholder until the verification cage (#17) lands. Keeps docs/drift honest.
+[group('test')]
+repro seed:
+    @echo "repro is implemented by the verification cage (#17); seed={{seed}}" >&2
+    @exit 1
+
 [group('test')]
 coverage:
     ./scripts/in-subtree.sh {{core}} dart test --exclude-tags=simulator,sabotage,benchmark --coverage=coverage

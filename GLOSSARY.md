@@ -35,6 +35,19 @@ If a term is missing, add it before using it in code.
 | **walking skeleton** | M0: end-to-end stub path, live before real Fugue exists. |
 | **stub engine** | Sort-by-NodeID renderer. Satisfies CR-01/02/03, not CR-04/05/06. |
 
+## Core development
+
+| Term | Meaning |
+|---|---|
+| **kernel** | The code that decides order or visibility: NodeID comparator, insert placement, sibling order, render traversal, tombstone application, causal-buffer fixpoint, and the certifier predicate. Fady-owned. |
+| **cage** | The verification infrastructure around the kernel: tree-shaped generators, exhaustive enumerator, trace/replay, reducer, golden runner, harness self-test, and simulator. Agent-owned. |
+| **truth table** | The decision table in `docs/core/ORDER.md` mapping every ambiguous order or visibility case to its expected result. |
+| **certifier** | A predicate that checks a rendered sequence against the order and visibility rules without trusting the engine's traversal. |
+| **golden** | A small hand-computed op history with a Fady-confirmed expected render and canonical state; the independent oracle. |
+| **trace** | The deterministic record of a failure: seed, op set, delivery schedule, and expected vs. actual state. |
+| **reducer** | The tool that shrinks a failing trace to the smallest op set and schedule that still fails. |
+| **harness self-test** | A deliberately broken engine variant the suite must reject; proves the suite can fail. |
+
 ## Verification
 
 | Term | Meaning |

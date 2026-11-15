@@ -67,6 +67,8 @@ Use `GLOSSARY.md` terms verbatim in types, functions, files, and tests.
 - One ticket per PR. Self-review before requesting merge.
 - `just ci` green locally before push. Never `--no-verify`.
 - Core PRs carry Fady's five-line defendability gate. Agents leave it blank.
+- Kernel files are listed in `docs/core/README.md`. Only Fady authors order or visibility
+  logic. If a change needs a kernel decision, stop and ask.
 
 ## 8. Documentation
 
